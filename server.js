@@ -17,7 +17,7 @@ app.use(cors({
 app.use(express.json());
 
 // Mock mode for testing - set to false when you have real PayPay credentials
-const MOCK_MODE = true; // Change to false when you have valid credentials
+const MOCK_MODE = false; // Using real PayPay credentials from client
 
 // PayPay Configuration
 const PAYPAY_API_BASE = 'https://stg-api.paypay.ne.jp'; // Sandbox URL
