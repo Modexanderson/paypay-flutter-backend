@@ -63,11 +63,21 @@ function generateAuthHeader(method, resourceUrl, body = '') {
   const timestamp = Math.floor(Date.now() / 1000);
   const nonce = crypto.randomBytes(16).toString('hex');
   
-  const signatureString = `${method}\n${resourceUrl}\n${API_KEY}\n${timestamp}\n${nonce}\n${body}\n`;
+  // Create content hash (MD5 of content-type + body)
+  let contentHash = 'empty';
+  if (body && body.trim() !== '') {
+    const md5 = crypto.createHash('md5');
+    md5.update('application/json'); // content-type
+    md5.update(body);
+    contentHash = md5.digest('base64');
+  }
+  
+  // Build signature string according to PayPay spec
+  const signatureString = `${method}\n${resourceUrl}\n${API_KEY}\n${timestamp}\n${nonce}\n${contentHash}\n`;
   const signature = crypto.createHmac('sha256', API_SECRET).update(signatureString).digest('base64');
   
   return {
-    'Authorization': `hmac OPA-Auth:${API_KEY}:${signature}:${nonce}:${timestamp}`,
+    'Authorization': `hmac OPA-Auth:${API_KEY}:${signature}:${nonce}:${timestamp}:${contentHash}`,
     'Content-Type': 'application/json',
     'X-ASSUME-MERCHANT': MERCHANT_ID
   };
