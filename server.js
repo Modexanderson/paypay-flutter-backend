@@ -6,12 +6,12 @@ require('dotenv').config();
 
 const app = express();
 
-// Enhanced CORS configuration
+// Fixed CORS for mobile apps
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://your-flutter-app-domain.com'] // Update with your actual domain
-    : '*', // Allow all origins in development
-  credentials: true
+  origin: '*', // Allow all origins for mobile apps
+  credentials: false, // Mobile apps don't need credentials
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json());
