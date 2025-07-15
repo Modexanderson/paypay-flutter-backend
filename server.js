@@ -35,7 +35,125 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Debug endpoint to check environment variables
+// Alternative test endpoint with different API base URLs
+app.get('/test-paypay-environments', async (req, res) => {
+  const environments = [
+    { name: 'Sandbox', url: 'https://stg-api.paypay.ne.jp' },
+    { name: 'Production', url: 'https://api.paypay.ne.jp' }
+  ];
+  
+  const results = [];
+  
+  for (const env of environments) {
+    try {
+      const testPaymentData = {
+        merchantPaymentId: `test_${Date.now()}_${env.name.toLowerCase()}`,
+        amount: {
+          amount: 100,
+          currency: 'JPY'
+        },
+        orderDescription: `Test Payment ${env.name}`,
+        codeType: 'ORDER_QR',
+        redirectUrl: 'paypayflutterdemo://payment-success',
+        redirectType: 'APP_DEEP_LINK',
+        requestedAt: Math.floor(Date.now() / 1000)
+      };
+
+      const resourceUrl = '/v2/codes';
+      const headers = generateAuthHeader('POST', resourceUrl, JSON.stringify(testPaymentData));
+
+      console.log(`=== TESTING ${env.name.toUpperCase()} ENVIRONMENT ===`);
+      console.log('URL:', `${env.url}${resourceUrl}`);
+
+      const response = await axios.post(
+        `${env.url}${resourceUrl}`,
+        testPaymentData,
+        { 
+          headers,
+          timeout: 10000
+        }
+      );
+
+      results.push({
+        environment: env.name,
+        success: true,
+        response: response.data
+      });
+
+      console.log(`${env.name} SUCCESS:`, response.data);
+
+    } catch (error) {
+      const errorData = {
+        environment: env.name,
+        success: false,
+        error: error.response?.data || error.message,
+        status: error.response?.status
+      };
+      
+      results.push(errorData);
+      console.error(`${env.name} ERROR:`, error.response?.data || error.message);
+    }
+  }
+  
+  res.json({
+    message: 'Tested PayPay environments',
+    results: results
+  });
+});
+app.get('/test-paypay', async (req, res) => {
+  try {
+    const testPaymentData = {
+      merchantPaymentId: `test_${Date.now()}`,
+      amount: {
+        amount: 100,
+        currency: 'JPY'
+      },
+      orderDescription: 'Test Payment',
+      codeType: 'ORDER_QR',
+      redirectUrl: 'paypayflutterdemo://payment-success',
+      redirectType: 'APP_DEEP_LINK',
+      requestedAt: Math.floor(Date.now() / 1000)
+    };
+
+    const resourceUrl = '/v2/codes';
+    const headers = generateAuthHeader('POST', resourceUrl, JSON.stringify(testPaymentData));
+
+    console.log('=== TEST PAYPAY API REQUEST ===');
+    console.log('URL:', `${PAYPAY_API_BASE}${resourceUrl}`);
+    console.log('Headers:', JSON.stringify(headers, null, 2));
+    console.log('Body:', JSON.stringify(testPaymentData, null, 2));
+    console.log('===============================');
+
+    const response = await axios.post(
+      `${PAYPAY_API_BASE}${resourceUrl}`,
+      testPaymentData,
+      { 
+        headers,
+        timeout: 30000
+      }
+    );
+
+    res.json({
+      success: true,
+      message: 'PayPay API test successful!',
+      response: response.data
+    });
+
+  } catch (error) {
+    console.error('=== TEST PAYPAY API ERROR ===');
+    console.error('Error:', error.response?.data || error.message);
+    console.error('Status:', error.response?.status);
+    console.error('Headers:', error.response?.headers);
+    console.error('============================');
+
+    res.status(500).json({
+      success: false,
+      error: error.response?.data || error.message,
+      status: error.response?.status,
+      details: 'Check server logs for full error details'
+    });
+  }
+});
 app.get('/debug', (req, res) => {
   res.json({
     mockMode: MOCK_MODE,
@@ -69,9 +187,9 @@ function generateAuthHeader(method, resourceUrl, body = '') {
   const timestamp = Math.floor(Date.now() / 1000);
   const nonce = crypto.randomBytes(16).toString('hex');
   
-  // Step 1: Create content hash (MD5 of content-type + body)
+  // Step 1: Create content hash (MD5 of content-type + body) or "empty" for GET
   let contentHash = 'empty';
-  if (body && body.trim() !== '') {
+  if (body && body.trim() !== '' && method !== 'GET') {
     const md5 = crypto.createHash('md5');
     md5.update('application/json'); // content-type
     md5.update(body);
@@ -82,13 +200,24 @@ function generateAuthHeader(method, resourceUrl, body = '') {
   // Format: method\nresourceUrl\napi_key\ntimestamp\nnonce\ncontentHash\n
   const signatureString = `${method}\n${resourceUrl}\n${API_KEY}\n${timestamp}\n${nonce}\n${contentHash}\n`;
   
+  console.log('=== HMAC DEBUG ===');
+  console.log('Signature String:', JSON.stringify(signatureString));
+  console.log('API Secret:', API_SECRET.substring(0, 10) + '...');
+  console.log('==================');
+  
   // Step 3: Generate HMAC-SHA256 signature
   const signature = crypto.createHmac('sha256', API_SECRET).update(signatureString).digest('base64');
   
-  // Step 4: Build authorization header
-  // Format: hmac OPA-Auth:api_key:signature:nonce:timestamp:contentHash
+  // Step 4: Build authorization header - PayPay format without contentHash at end
+  // Correct format: hmac OPA-Auth:api_key:signature:nonce:timestamp
+  const authValue = `hmac OPA-Auth:${API_KEY}:${signature}:${nonce}:${timestamp}`;
+  
+  console.log('=== AUTH HEADER ===');
+  console.log('Authorization:', authValue);
+  console.log('==================');
+  
   return {
-    'Authorization': `hmac OPA-Auth:${API_KEY}:${signature}:${nonce}:${timestamp}:${contentHash}`,
+    'Authorization': authValue,
     'Content-Type': 'application/json',
     'X-ASSUME-MERCHANT': MERCHANT_ID
   };
