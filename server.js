@@ -47,7 +47,13 @@ app.get('/debug', (req, res) => {
     merchantIdPreview: MERCHANT_ID ? `${MERCHANT_ID.substring(0, 8)}...` : 'MISSING',
     nodeEnv: process.env.NODE_ENV || 'development',
     apiBase: PAYPAY_API_BASE,
-    allEnvKeys: Object.keys(process.env).filter(key => key.includes('PAYPAY'))
+    allEnvKeys: Object.keys(process.env).filter(key => key.includes('PAYPAY')),
+    // Add credential validation
+    credentialsValid: {
+      apiKey: API_KEY === 'a_upOegjZBZE_yVtZ',
+      apiSecret: API_SECRET === 'dTDIJthE4wPLmRMTId5DKUIi4+/nSjgCWsJ6YzWUs8s=',
+      merchantId: MERCHANT_ID === '934417530954326016'
+    }
   });
 });
 
@@ -63,7 +69,7 @@ function generateAuthHeader(method, resourceUrl, body = '') {
   const timestamp = Math.floor(Date.now() / 1000);
   const nonce = crypto.randomBytes(16).toString('hex');
   
-  // Create content hash (MD5 of content-type + body)
+  // Step 1: Create content hash (MD5 of content-type + body)
   let contentHash = 'empty';
   if (body && body.trim() !== '') {
     const md5 = crypto.createHash('md5');
@@ -72,10 +78,15 @@ function generateAuthHeader(method, resourceUrl, body = '') {
     contentHash = md5.digest('base64');
   }
   
-  // Build signature string according to PayPay spec
+  // Step 2: Build signature string according to PayPay spec
+  // Format: method\nresourceUrl\napi_key\ntimestamp\nnonce\ncontentHash\n
   const signatureString = `${method}\n${resourceUrl}\n${API_KEY}\n${timestamp}\n${nonce}\n${contentHash}\n`;
+  
+  // Step 3: Generate HMAC-SHA256 signature
   const signature = crypto.createHmac('sha256', API_SECRET).update(signatureString).digest('base64');
   
+  // Step 4: Build authorization header
+  // Format: hmac OPA-Auth:api_key:signature:nonce:timestamp:contentHash
   return {
     'Authorization': `hmac OPA-Auth:${API_KEY}:${signature}:${nonce}:${timestamp}:${contentHash}`,
     'Content-Type': 'application/json',
@@ -151,6 +162,11 @@ app.post('/create-payment', async (req, res) => {
     const headers = generateAuthHeader('POST', resourceUrl, JSON.stringify(paymentData));
 
     console.log(`Creating payment for amount: ${amount} JPY`);
+    console.log('DEBUG - Request details:');
+    console.log('- URL:', `${PAYPAY_API_BASE}${resourceUrl}`);
+    console.log('- Method: POST');
+    console.log('- Headers:', JSON.stringify(headers, null, 2));
+    console.log('- Body:', JSON.stringify(paymentData, null, 2));
 
     const response = await axios.post(
       `${PAYPAY_API_BASE}${resourceUrl}`,
