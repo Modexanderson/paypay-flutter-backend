@@ -22,9 +22,10 @@ app.get('/health', (req, res) => {
 });
 
 // PayPay Configuration
-const PAYPAY_API_BASE = process.env.NODE_ENV === 'production' 
-  ? 'https://api.paypay.ne.jp'  // Production URL
-  : 'https://stg-api.paypay.ne.jp'; // Sandbox URL
+const PAYPAY_API_BASE = 'https://stg-api.paypay.ne.jp';
+// const PAYPAY_API_BASE = process.env.NODE_ENV === 'production' 
+//   ? 'https://api.paypay.ne.jp'  // Production URL
+//   : 'https://stg-api.paypay.ne.jp'; // Sandbox URL
 
 const API_KEY = process.env.PAYPAY_API_KEY;
 const API_SECRET = process.env.PAYPAY_API_SECRET;
